@@ -83,6 +83,12 @@ class Triangle(FaceKind):
             return False
         return True
 
+class Round(Triangle):
+    def __init__(self) -> None:
+        super().__init__()
+    def __str__(self) -> str:
+        return "Round"
+
 class Face():
     def __init__(self, facekind)-> None:
         self.facekind = facekind
@@ -140,7 +146,7 @@ class Cube():
         return False
     def __ne__(self, obj: object) -> bool:
         return not self == obj
-    def get_face_list(self):
+    def get_face_list(self) -> list:
         return [self.top, self.bottom, self.front, self.back, self.left, self.right]
     # set a face to be the top, then check all 4 rotations
     # return Cube(self.top, self.bottom, self.front, self.back, self.left, self.right)
@@ -157,6 +163,15 @@ class Cube():
         return Cube(self.left, self.right, self.front, self.back, self.bottom, self.top)
     def right_to_top(self):
         return Cube(self.right, self.left, self.front, self.back, self.top, self.bottom)
+    
+    def areFacesValid(self) -> bool:
+        okFaceCount = 0
+        for face in self.get_face_list():
+            if face and face.isOrientationOk():
+                okFaceCount += 1
+            elif face is None:
+                okFaceCount += 1
+        return okFaceCount == 6
 
 def cullCubes(cubeList: list) -> list:
     tempCubes = []
@@ -168,6 +183,39 @@ def cullCubes(cubeList: list) -> list:
         if not flag:
             tempCubes.append(cube)
     return tempCubes
+
+def recursiveEdgeCheck(cube: Cube, newestFace: str, connectedFaces: list):
+    validCubes = []
+    # connectedFaces must be a list of tuples containing 3 elements: the X side, the X side's target edge, and the Y side's target edge, all strings
+    cubeNewestFace = getattr(cube, newestFace)
+    connectedFacesCopy = copy.deepcopy(connectedFaces)
+    targetTuple = connectedFacesCopy.pop(0)
+    cubeTargetFace = getattr(cube, targetTuple[0])
+    sharedBudget = list(set(cubeTargetFace.remainingBudget) & set(cubeNewestFace.remainingBudget))
+    if Edge.SPECIALFULL in sharedBudget and cubeNewestFace.facekind == cubeTargetFace.facekind:
+        sharedBudget = [i for i in sharedBudget if i != Edge.SPECIALFULL]
+    if Edge.SPECIALTRI in sharedBudget and cubeNewestFace.facekind == cubeTargetFace.facekind:
+        sharedBudget = [i for i in sharedBudget if i != Edge.SPECIALTRI]
+    for edge in sharedBudget:
+        nextCube = copy.deepcopy(cube)
+        nextCubeNewestFace = getattr(nextCube, newestFace)
+        nextCubeTargetFace =  getattr(nextCube, targetTuple[0])
+        #nextCubeTargetFace.x = edge
+        setattr(nextCubeTargetFace, targetTuple[1], edge)
+        nextCubeTargetFace.remainingBudget.remove(edge)
+        #nextCubeNewestFace.y = edge
+        setattr(nextCubeNewestFace, targetTuple[2], edge)
+        nextCubeNewestFace.remainingBudget.remove(edge)
+
+        # check and append cube, or recur
+        if connectedFacesCopy:
+            # recur
+            validCubes.extend(recursiveEdgeCheck(nextCube, newestFace, connectedFacesCopy))
+        else:
+            # check and append if valid
+            if nextCube.areFacesValid():
+                validCubes.append(nextCube)
+    return validCubes
 
 if __name__ == "__main__":
     facekinds = [Empty(), Triangle(), Square()]
@@ -181,23 +229,9 @@ if __name__ == "__main__":
     cubeBacks = []
     for face in facekinds:
         for cube in cubeBottoms:
-            #sharedBudget = list((Counter(bottom,remainingBudget) & Counter(faceBack.budget)).elements())
-            sharedBudget = list(set(cube.bottom.remainingBudget) & set(face.budget))
-            if sharedBudget:
-                if Edge.SPECIALFULL in sharedBudget and face == cube.bottom.facekind:
-                    sharedBudget = [i for i in sharedBudget if i != Edge.SPECIALFULL]
-                if Edge.SPECIALTRI in sharedBudget and face == cube.bottom.facekind:
-                    sharedBudget = [i for i in sharedBudget if i != Edge.SPECIALTRI]
-                cube.back = Face(face)
-                for edge in sharedBudget:
-                    cubeEdges = copy.deepcopy(cube)
-
-                    cubeEdges.bottom.a = edge
-                    cubeEdges.bottom.remainingBudget.remove(edge)
-                    cubeEdges.back.d = edge
-                    cubeEdges.back.remainingBudget.remove(edge)
-
-                    cubeBacks.append(cubeEdges)
+            modCube = copy.deepcopy(cube)
+            modCube.back = Face(face)
+            cubeBacks.extend(recursiveEdgeCheck(modCube, "back", [("bottom", "a", "d")]))
     
     # find a way to drop cubes where the faces AND EDGES are the same
     cubeBacks = cullCubes(cubeBacks)
@@ -205,42 +239,9 @@ if __name__ == "__main__":
     cubeLefts = []
     for face in facekinds:
         for cube in cubeBacks:
-            sharedBudgetBottom = list(set(cube.bottom.remainingBudget) & set(face.budget))
-            if sharedBudgetBottom:
-                if Edge.SPECIALFULL in sharedBudgetBottom and face == cube.bottom.facekind:
-                    sharedBudgetBottom = [i for i in sharedBudgetBottom if i != Edge.SPECIALFULL]
-                if Edge.SPECIALTRI in sharedBudgetBottom and face == cube.bottom.facekind:
-                    sharedBudgetBottom = [i for i in sharedBudgetBottom if i != Edge.SPECIALTRI]
-                for bottomLeftEdge in sharedBudgetBottom:
-                    faceBottomBudget = face.budget.copy()
-                    faceBottomBudget.remove(bottomLeftEdge)
-                    sharedBudgetBack = list(set(cube.back.remainingBudget) & set(faceBottomBudget))
-                    if Edge.SPECIALFULL in sharedBudgetBack and face == cube.back.facekind:
-                        sharedBudgetBack = [i for i in sharedBudgetBack if i != Edge.SPECIALFULL]
-                    if Edge.SPECIALTRI in sharedBudgetBack and face == cube.back.facekind:
-                        sharedBudgetBack = [i for i in sharedBudgetBack if i != Edge.SPECIALTRI]
-                    cube.left = Face(face)
-                    for backLeftEdge in sharedBudgetBack:
-                        cubeEdges = copy.deepcopy(cube)
-
-                        cubeEdges.bottom.b = bottomLeftEdge
-                        cubeEdges.bottom.remainingBudget.remove(bottomLeftEdge)
-                        cubeEdges.left.d = bottomLeftEdge
-                        cubeEdges.left.remainingBudget.remove(bottomLeftEdge)
-
-                        cubeEdges.back.b = backLeftEdge
-                        cubeEdges.back.remainingBudget.remove(backLeftEdge)
-                        cubeEdges.left.c = backLeftEdge
-                        cubeEdges.left.remainingBudget.remove(backLeftEdge)
-
-                        okFaceCount = 0
-                        for cubeFace in cubeEdges.get_face_list():
-                            if cubeFace and cubeFace.isOrientationOk():
-                                okFaceCount += 1
-                            elif cubeFace is None:
-                                okFaceCount += 1
-                        if okFaceCount == 6:
-                            cubeLefts.append(cubeEdges)
+            modCube = copy.deepcopy(cube)
+            modCube.left = Face(face)
+            cubeLefts.extend(recursiveEdgeCheck(modCube, "left", [("bottom", "b", "d"), ("back", "b", "c")]))
 
     cubeLefts = cullCubes(cubeLefts)
     # for cube in cubeLefts:
@@ -253,42 +254,9 @@ if __name__ == "__main__":
     cubeFronts = []
     for face in facekinds:
         for cube in cubeLefts:
-            sharedBudgetBottom = list(set(cube.bottom.remainingBudget) & set(face.budget))
-            if sharedBudgetBottom:
-                if Edge.SPECIALFULL in sharedBudgetBottom and face == cube.bottom.facekind:
-                    sharedBudgetBottom = [i for i in sharedBudgetBottom if i != Edge.SPECIALFULL]
-                if Edge.SPECIALTRI in sharedBudgetBottom and face == cube.bottom.facekind:
-                    sharedBudgetBottom = [i for i in sharedBudgetBottom if i != Edge.SPECIALTRI]
-                for bottomFrontEdge in sharedBudgetBottom:
-                    faceBottomBudget = face.budget.copy()
-                    faceBottomBudget.remove(bottomFrontEdge)
-                    sharedBudgetLeft = list(set(cube.left.remainingBudget) & set(faceBottomBudget))
-                    if Edge.SPECIALFULL in sharedBudgetLeft and face == cube.left.facekind:
-                        sharedBudgetLeft = [i for i in sharedBudgetLeft if i != Edge.SPECIALFULL]
-                    if Edge.SPECIALTRI in sharedBudgetLeft and face == cube.left.facekind:
-                        sharedBudgetLeft = [i for i in sharedBudgetLeft if i != Edge.SPECIALTRI]
-                    cube.front = Face(face)
-                    for frontLeftEdge in sharedBudgetLeft:
-                        cubeEdges = copy.deepcopy(cube)
-
-                        cubeEdges.bottom.d = bottomFrontEdge
-                        cubeEdges.bottom.remainingBudget.remove(bottomFrontEdge)
-                        cubeEdges.front.d = bottomFrontEdge
-                        cubeEdges.front.remainingBudget.remove(bottomFrontEdge)
-
-                        cubeEdges.left.b = frontLeftEdge
-                        cubeEdges.left.remainingBudget.remove(frontLeftEdge)
-                        cubeEdges.front.b = frontLeftEdge
-                        cubeEdges.front.remainingBudget.remove(frontLeftEdge)
-
-                        okFaceCount = 0
-                        for cubeFace in cubeEdges.get_face_list():
-                            if cubeFace and cubeFace.isOrientationOk():
-                                okFaceCount += 1
-                            elif cubeFace is None:
-                                okFaceCount += 1
-                        if okFaceCount == 6:
-                            cubeFronts.append(cubeEdges)
+            modCube = copy.deepcopy(cube)
+            modCube.front = Face(face)
+            cubeFronts.extend(recursiveEdgeCheck(modCube, "front", [("bottom", "d", "d"), ("left", "b", "b")]))
     
     cubeFronts = cullCubes(cubeFronts)
     # for cube in cubeFronts:
@@ -302,55 +270,9 @@ if __name__ == "__main__":
     cubeRights = []
     for face in facekinds:
         for cube in cubeFronts:
-            sharedBudgetBottom = list(set(cube.bottom.remainingBudget) & set(face.budget))
-            if sharedBudgetBottom:
-                if Edge.SPECIALFULL in sharedBudgetBottom and face == cube.bottom.facekind:
-                    sharedBudgetBottom = [i for i in sharedBudgetBottom if i != Edge.SPECIALFULL]
-                if Edge.SPECIALTRI in sharedBudgetBottom and face == cube.bottom.facekind:
-                    sharedBudgetBottom = [i for i in sharedBudgetBottom if i != Edge.SPECIALTRI]
-                for bottomRightEdge in sharedBudgetBottom:
-                    faceBottomBudget = face.budget.copy()
-                    faceBottomBudget.remove(bottomRightEdge)
-                    sharedBudgetFront = list(set(cube.front.remainingBudget) & set(faceBottomBudget))
-                    if Edge.SPECIALFULL in sharedBudgetFront and face == cube.front.facekind:
-                        sharedBudgetFront = [i for i in sharedBudgetFront if i != Edge.SPECIALFULL]
-                    if Edge.SPECIALTRI in sharedBudgetFront and face == cube.front.facekind:
-                        sharedBudgetFront = [i for i in sharedBudgetFront if i != Edge.SPECIALTRI]
-                    for frontRightEdge in sharedBudgetFront:
-                        faceFrontBudget = faceBottomBudget.copy()
-                        faceFrontBudget.remove(frontRightEdge)
-                        sharedBudgetBack = list(set(cube.back.remainingBudget) & set(faceFrontBudget))
-                        if Edge.SPECIALFULL in sharedBudgetBack and face == cube.back.facekind:
-                            sharedBudgetBack = [i for i in sharedBudgetBack if i != Edge.SPECIALFULL]
-                        if Edge.SPECIALTRI in sharedBudgetBack and face == cube.back.facekind:
-                            sharedBudgetBack = [i for i in sharedBudgetBack if i != Edge.SPECIALTRI]
-                        cube.right = Face(face)
-                        for backRightEdge in sharedBudgetBack:
-                            cubeEdges = copy.deepcopy(cube)
-
-                            cubeEdges.bottom.c = bottomRightEdge
-                            cubeEdges.bottom.remainingBudget.remove(bottomRightEdge)
-                            cubeEdges.right.d = bottomRightEdge
-                            cubeEdges.right.remainingBudget.remove(bottomRightEdge)
-
-                            cubeEdges.front.c = frontRightEdge
-                            cubeEdges.front.remainingBudget.remove(frontRightEdge)
-                            cubeEdges.right.b = frontRightEdge
-                            cubeEdges.right.remainingBudget.remove(frontRightEdge)
-
-                            cubeEdges.back.c = backRightEdge
-                            cubeEdges.back.remainingBudget.remove(backRightEdge)
-                            cubeEdges.right.c = backRightEdge
-                            cubeEdges.right.remainingBudget.remove(backRightEdge)
-
-                            okFaceCount = 0
-                            for cubeFace in cubeEdges.get_face_list():
-                                if cubeFace and cubeFace.isOrientationOk():
-                                    okFaceCount += 1
-                                elif cubeFace is None:
-                                    okFaceCount += 1
-                            if okFaceCount == 6:
-                                cubeRights.append(cubeEdges)
+            modCube = copy.deepcopy(cube)
+            modCube.right = Face(face)
+            cubeRights.extend(recursiveEdgeCheck(modCube, "right", [("bottom", "c", "d"), ("front", "c", "b"), ("back", "c", "c")]))
     
     cubeRights = cullCubes(cubeRights)
     # for cube in cubeRights:
@@ -366,68 +288,9 @@ if __name__ == "__main__":
     cubeTops = []
     for face in facekinds:
         for cube in cubeRights:
-            sharedBudgetBack = list(set(cube.back.remainingBudget) & set(face.budget))
-            if sharedBudgetBack:
-                if Edge.SPECIALFULL in sharedBudgetBack and face == cube.back.facekind:
-                    sharedBudgetBack = [i for i in sharedBudgetBack if i != Edge.SPECIALFULL]
-                if Edge.SPECIALTRI in sharedBudgetBack and face == cube.back.facekind:
-                    sharedBudgetBack = [i for i in sharedBudgetBack if i != Edge.SPECIALTRI]
-                for topBackEdge in sharedBudgetBack:
-                    faceBackBudget = face.budget.copy()
-                    faceBackBudget.remove(topBackEdge)
-                    sharedBudgetLeft = list(set(cube.left.remainingBudget) & set(faceBackBudget))
-                    if Edge.SPECIALFULL in sharedBudgetLeft and face == cube.left.facekind:
-                        sharedBudgetLeft = [i for i in sharedBudgetLeft if i != Edge.SPECIALFULL]
-                    if Edge.SPECIALTRI in sharedBudgetLeft and face == cube.left.facekind:
-                        sharedBudgetLeft = [i for i in sharedBudgetLeft if i != Edge.SPECIALTRI]
-                    for topLeftEdge in sharedBudgetLeft:
-                        faceLeftBudget = faceBackBudget.copy()
-                        faceLeftBudget.remove(topLeftEdge)
-                        sharedBudgetFront = list(set(cube.front.remainingBudget) & set(faceLeftBudget))
-                        if Edge.SPECIALFULL in sharedBudgetFront and face == cube.front.facekind:
-                            sharedBudgetFront = [i for i in sharedBudgetFront if i != Edge.SPECIALFULL]
-                        if Edge.SPECIALTRI in sharedBudgetFront and face == cube.front.facekind:
-                            sharedBudgetFront = [i for i in sharedBudgetFront if i != Edge.SPECIALTRI]
-                        for topFrontEdge in sharedBudgetFront:
-                            faceFrontBudget = faceLeftBudget.copy()
-                            faceFrontBudget.remove(topFrontEdge)
-                            sharedBudgetRight = list(set(cube.right.remainingBudget) & set(faceFrontBudget))
-                            if Edge.SPECIALFULL in sharedBudgetRight and face == cube.right.facekind:
-                                sharedBudgetRight = [i for i in sharedBudgetRight if i != Edge.SPECIALFULL]
-                            if Edge.SPECIALTRI in sharedBudgetRight and face == cube.right.facekind:
-                                sharedBudgetRight = [i for i in sharedBudgetRight if i != Edge.SPECIALTRI]
-                            cube.top = Face(face)
-                            for topRightEdge in sharedBudgetRight:
-                                cubeEdges = copy.deepcopy(cube)
-
-                                cubeEdges.back.a = topBackEdge
-                                cubeEdges.back.remainingBudget.remove(topBackEdge)
-                                cubeEdges.top.a = topBackEdge
-                                cubeEdges.top.remainingBudget.remove(topBackEdge)
-
-                                cubeEdges.left.a = topLeftEdge
-                                cubeEdges.left.remainingBudget.remove(topLeftEdge)
-                                cubeEdges.top.b = topLeftEdge
-                                cubeEdges.top.remainingBudget.remove(topLeftEdge)
-
-                                cubeEdges.front.a = topFrontEdge
-                                cubeEdges.front.remainingBudget.remove(topFrontEdge)
-                                cubeEdges.top.d = topFrontEdge
-                                cubeEdges.top.remainingBudget.remove(topFrontEdge)
-
-                                cubeEdges.right.a = topRightEdge
-                                cubeEdges.right.remainingBudget.remove(topRightEdge)
-                                cubeEdges.top.c = topRightEdge
-                                cubeEdges.top.remainingBudget.remove(topRightEdge)
-
-                                okFaceCount = 0
-                                for cubeFace in cubeEdges.get_face_list():
-                                    if cubeFace and cubeFace.isOrientationOk():
-                                        okFaceCount += 1
-                                    elif cubeFace is None:
-                                        okFaceCount += 1
-                                if okFaceCount == 6:
-                                    cubeTops.append(cubeEdges)
+            modCube = copy.deepcopy(cube)
+            modCube.top = Face(face)
+            cubeTops.extend(recursiveEdgeCheck(modCube, "top", [("back", "a", "a"), ("left", "a", "b"), ("front", "a", "d"), ("right", "a", "c")]))
     
     cubeTops = cullCubes(cubeTops)
     for cube in cubeTops:
@@ -445,4 +308,3 @@ if __name__ == "__main__":
     #TODO: cube equality checker doesn't seem to be picking up dupes with specialtri sides?
     #TODO: move edges into the cubes so we can do the equality with rotation better
     #TODO: this should also eliminate the confusion of the abcd format
-    #TODO: make the repeated code a function, recursive

@@ -111,18 +111,9 @@ class Face():
             return False
         if self.facekind != obj.facekind:
             return False
-        # TODO: may be the source of the duplicated cube types?
         if self.remainingBudget != obj.remainingBudget:
             return False
-        if [self.a, self.b, self.c, self.d] == [obj.a, obj.b, obj.c, obj.d]:
-            return True
-        elif [self.a, self.b, self.c, self.d] == [obj.c, obj.a, obj.d, obj.b]:
-            return True
-        elif [self.a, self.b, self.c, self.d] == [obj.d, obj.c, obj.b, obj.a]:
-            return True
-        elif [self.a, self.b, self.c, self.d] == [obj.b, obj.d, obj.a, obj.c]:
-            return True
-        return False
+        return True
     def __ne__(self, obj: object) -> bool:
         return not self == obj
     def isOrientationOk(self) -> bool:
@@ -358,7 +349,7 @@ def recursiveEdgeCheck(cube: Cube, newestFace: str, connectedFaces: list):
     for edge in sharedBudget:
         nextCube = copy.deepcopy(cube)
         nextCubeNewestFace = getattr(nextCube, newestFace)
-        nextCubeTargetFace =  getattr(nextCube, targetTuple[0])
+        nextCubeTargetFace = getattr(nextCube, targetTuple[0])
         nextCube.addEdge((newestFace, targetTuple[0]), edge)
         #nextCubeTargetFace.x = edge
         setattr(nextCubeTargetFace, targetTuple[1], edge)
@@ -456,15 +447,22 @@ if __name__ == "__main__":
     for cube in cubeTops:
         print()
         print(cube.bottom.facekind, cube.back.facekind, cube.left.facekind, cube.front.facekind, cube.right.facekind, cube.top.facekind)
-        print(cube.bottom.a, cube.bottom.b, cube.bottom.d, cube.bottom.c)
-        print(cube.back.b)
-        print(cube.left.b)
-        print(cube.front.c)
-        print(cube.right.c)
-        print(cube.top.a, cube.top.b, cube.top.d, cube.top.c)
+        # print(cube.bottom.a, cube.bottom.b, cube.bottom.d, cube.bottom.c)
+        # print(cube.back.b)
+        # print(cube.left.b)
+        # print(cube.front.c)
+        # print(cube.right.c)
+        # print(cube.top.a, cube.top.b, cube.top.d, cube.top.c)
+        print(cube.bottomBackEdge, cube.bottomLeftEdge, cube.bottomFrontEdge, cube.bottomRightEdge)
+        print(cube.backLeftEdge)
+        print(cube.frontLeftEdge)
+        print(cube.frontRightEdge)
+        print(cube.backRightEdge)
+        print(cube.topBackEdge, cube.topLeftEdge, cube.topFrontEdge, cube.topRightEdge)
     print(len(cubeTops))
     
     #TODO: fix the cube equality checker? there should be two 'all-triangle' cubes but we have one and not the inverse
     #TODO: cube equality checker doesn't seem to be picking up dupes with specialtri sides?
     #TODO: move edges into the cubes so we can do the equality with rotation better
     #TODO: this should also eliminate the confusion of the abcd format
+    #TODO: should I legalize the inverse of the 2 triangle 4 void blocks? solution should be to give squares the specialtri rules like voids

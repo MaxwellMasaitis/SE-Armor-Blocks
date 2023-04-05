@@ -461,8 +461,5 @@ if __name__ == "__main__":
         print(cube.topBackEdge, cube.topLeftEdge, cube.topFrontEdge, cube.topRightEdge)
     print(len(cubeTops))
     
-    #TODO: fix the cube equality checker? there should be two 'all-triangle' cubes but we have one and not the inverse
-    #TODO: cube equality checker doesn't seem to be picking up dupes with specialtri sides?
-    #TODO: move edges into the cubes so we can do the equality with rotation better
-    #TODO: this should also eliminate the confusion of the abcd format
     #TODO: should I legalize the inverse of the 2 triangle 4 void blocks? solution should be to give squares the specialtri rules like voids
+    #TODO: or, remove specialtri?

@@ -449,11 +449,12 @@ def recursiveEdgeCheck(cube: Cube, newestFace: str, connectedFaces: list):
     targetTuple = connectedFacesCopy.pop(0)
     cubeTargetFace = getattr(cube, targetTuple[0])
     sharedBudget = list(set(cubeTargetFace.remainingBudget) & set(cubeNewestFace.remainingBudget))
-    if Edge.SPECIALFULL in sharedBudget and cubeNewestFace.facekind == cubeTargetFace.facekind:
-        sharedBudget = [i for i in sharedBudget if i != Edge.SPECIALFULL]
+    specialChecks = [Edge.SPECIALFULL]
     if SPECIALTRI_IS_LEGAL:
-        if Edge.SPECIALTRI in sharedBudget and cubeNewestFace.facekind == cubeTargetFace.facekind:
-            sharedBudget = [i for i in sharedBudget if i != Edge.SPECIALTRI]
+        specialChecks.append(Edge.SPECIALTRI)
+    for specialEdge in specialChecks:
+        if specialEdge in sharedBudget and (Empty() not in (cubeNewestFace.facekind, cubeTargetFace.facekind) or cubeNewestFace.facekind == cubeTargetFace.facekind):
+            sharedBudget = [i for i in sharedBudget if i != specialEdge]
     for edge in sharedBudget:
         nextCube = copy.deepcopy(cube)
         nextCubeNewestFace = getattr(nextCube, newestFace)
@@ -570,5 +571,3 @@ if __name__ == "__main__":
     
     #TODO: should I legalize the inverse of the 2 triangle 4 void blocks? solution should be to give squares the SPECIALTRI rules like voids
     #TODO: or, remove SPECIALTRI?
-    #TODO: Round faces, being a subclass of Triangle faces, are different from Triangles and therefore interact poorly with SPECIALTRI
-    # thus, SPECIALTRI's check (and all SPECIAL edges) should check explicitly that either the current or target face is Empty

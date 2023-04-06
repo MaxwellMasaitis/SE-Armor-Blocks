@@ -2,18 +2,21 @@ from enum import Enum
 from collections import Counter
 import copy
 
+# Triangle (and Round) faces can have one otherwise FULL edge touch an otherwise VOID edge
+SPECIALTRI_IS_LEGAL = True
+
 class Edge(Enum):
     VOID = 0
     FULL = 1
+    SPECIALFULL = 2
     #_ Left Right _
     #   |      |
     #|  _      _  |
-    HALF_LEFT = 2
-    HALF_RIGHT = 3
-    
-    SPECIALFULL = 4
-    SPECIALTRI = 5
-    SPECIALHALF = 6
+    HALF_LEFT = 3
+    HALF_RIGHT = 4
+    SPECIALHALF = 5
+
+    SPECIALTRI = 6
 
 class FaceKind(object):
     def __init__(self) -> None:
@@ -48,7 +51,8 @@ class Empty(FaceKind):
         super().__init__()
         self.budget += 4 * [Edge.VOID]
         self.budget += 2 * [Edge.SPECIALFULL]
-        self.budget += [Edge.SPECIALTRI]
+        if SPECIALTRI_IS_LEGAL:
+            self.budget += [Edge.SPECIALTRI]
     def __str__(self) -> str:
         return "Empty"
     def orientationCheck(self, a: Edge, b: Edge, c: Edge, d: Edge) -> bool:
@@ -57,9 +61,10 @@ class Empty(FaceKind):
             return False
         elif b == Edge.SPECIALFULL and c == Edge.SPECIALFULL:
             return False
-        # cannot contain SPECIALFULL and SPECIALTRI at the same time
-        if Edge.SPECIALFULL in [a,b,c,d] and Edge.SPECIALTRI in [a,b,c,d]:
-            return False
+        if SPECIALTRI_IS_LEGAL:
+            # cannot contain SPECIALFULL and SPECIALTRI at the same time
+            if Edge.SPECIALFULL in [a,b,c,d] and Edge.SPECIALTRI in [a,b,c,d]:
+                return False
         #TODO: add cases for half edges
         return True
 
@@ -68,7 +73,8 @@ class Triangle(FaceKind):
         super().__init__()
         self.budget += 2 * [Edge.FULL]
         self.budget += 2 * [Edge.VOID]
-        self.budget += [Edge.SPECIALTRI]
+        if SPECIALTRI_IS_LEGAL:
+            self.budget += [Edge.SPECIALTRI]
     def __str__(self) -> str:
         return "Triangle"
     # think up a way to lock the orientation of the edges (set up a parent class?)
@@ -78,10 +84,111 @@ class Triangle(FaceKind):
             return False
         elif b is not None and c is not None and b == c:
             return False
-        # SPECIALTRI must take the place of a FULL and hence cannot be opposite of a FULL
-        if (Edge.SPECIALTRI in (a,d) and Edge.FULL in (a,d)) or (Edge.SPECIALTRI in (b,c) and Edge.FULL in (b,c)):
-            return False
+        if SPECIALTRI_IS_LEGAL:
+            # SPECIALTRI must take the place of a FULL and hence cannot be opposite of a FULL
+            if (Edge.SPECIALTRI in (a,d) and Edge.FULL in (a,d)) or (Edge.SPECIALTRI in (b,c) and Edge.FULL in (b,c)):
+                return False
         return True
+    
+class HalfSquare(FaceKind):
+    def __init__(self) -> None:
+        super().__init__()
+        self.budget += [Edge.FULL]
+        self.budget += [Edge.VOID]
+        self.budget += [Edge.HALF_LEFT]
+        self.budget += [Edge.HALF_RIGHT]
+        self.budget += [Edge.SPECIALHALF]
+    def __str__(self) -> str:
+        return "HalfSquare"
+    def orientationCheck(self, a: Edge, b: Edge, c: Edge, d: Edge) -> bool:
+        # void must be opposite full
+        # left and right must be opposite
+        # left must be left of full, right must be right of full
+        # special must be opposite another half
+        pass
+
+class HalfTriangle(FaceKind):
+    def __init__(self) -> None:
+        super().__init__()
+        self.budget += 2 * [Edge.VOID]
+        self.budget += [Edge.HALF_LEFT]
+        self.budget += [Edge.HALF_RIGHT]
+    def __str__(self) -> str:
+        return "HalfTriangle"
+    def orientationCheck(self, a: Edge, b: Edge, c: Edge, d: Edge) -> bool:
+        # halves must be opposite voids
+        # left must be left of right, right must be right of left
+        pass
+
+class InvertedHalfTriangle(FaceKind):
+    def __init__(self) -> None:
+        super().__init__()
+        self.budget += 2 * [Edge.FULL]
+        self.budget += [Edge.HALF_LEFT]
+        self.budget += [Edge.HALF_RIGHT]
+        self.budget += 2 * [Edge.SPECIALHALF]
+    def __str__(self) -> str:
+        return "InvertedHalfTriangle"
+    def orientationCheck(self, a: Edge, b: Edge, c: Edge, d: Edge) -> bool:
+        # halves must be opposite fulls
+        # left must be right of right, right must be left of left
+        pass
+
+class TipLeft(FaceKind):
+    def __init__(self) -> None:
+        super().__init__()
+        self.budget += [Edge.FULL]
+        self.budget += 2 * [Edge.VOID]
+        self.budget += [Edge.HALF_LEFT]
+        self.budget += [Edge.SPECIALHALF]
+    def __str__(self) -> str:
+        return "TipLeft"
+    def orientationCheck(self, a: Edge, b: Edge, c: Edge, d: Edge) -> bool:
+        # voids must be opposite non-voids
+        # left must be left of full
+        pass
+
+class TipRight(FaceKind):
+    def __init__(self) -> None:
+        super().__init__()
+        self.budget += [Edge.FULL]
+        self.budget += 2 * [Edge.VOID]
+        self.budget += [Edge.HALF_RIGHT]
+        self.budget += [Edge.SPECIALHALF]
+    def __str__(self) -> str:
+        return "TipRight"
+    def orientationCheck(self, a: Edge, b: Edge, c: Edge, d: Edge) -> bool:
+        # voids must be opposite non-voids
+        # right must be right of full
+        pass
+
+class BaseLeft(FaceKind):
+    def __init__(self) -> None:
+        super().__init__()
+        self.budget += 2 * [Edge.FULL]
+        self.budget += [Edge.VOID]
+        self.budget += [Edge.HALF_LEFT]
+        self.budget += [Edge.SPECIALHALF]
+    def __str__(self) -> str:
+        return "TipLeft"
+    def orientationCheck(self, a: Edge, b: Edge, c: Edge, d: Edge) -> bool:
+        # fulls must be opposite non-fulls
+        # left must be left of full
+        pass
+
+class BaseRight(FaceKind):
+    def __init__(self) -> None:
+        super().__init__()
+        self.budget += 2 * [Edge.FULL]
+        self.budget += [Edge.VOID]
+        self.budget += [Edge.HALF_RIGHT]
+        self.budget += [Edge.SPECIALHALF]
+    def __str__(self) -> str:
+        return "BaseRight"
+    def orientationCheck(self, a: Edge, b: Edge, c: Edge, d: Edge) -> bool:
+        # fulls must be opposite non-fulls
+        # right must be right of full
+        pass
 
 class Round(Triangle):
     def __init__(self) -> None:
@@ -90,7 +197,7 @@ class Round(Triangle):
         return "Round"
 
 class Face():
-    def __init__(self, facekind)-> None:
+    def __init__(self, facekind: FaceKind)-> None:
         self.facekind = facekind
         # a
         #b c
@@ -344,8 +451,9 @@ def recursiveEdgeCheck(cube: Cube, newestFace: str, connectedFaces: list):
     sharedBudget = list(set(cubeTargetFace.remainingBudget) & set(cubeNewestFace.remainingBudget))
     if Edge.SPECIALFULL in sharedBudget and cubeNewestFace.facekind == cubeTargetFace.facekind:
         sharedBudget = [i for i in sharedBudget if i != Edge.SPECIALFULL]
-    if Edge.SPECIALTRI in sharedBudget and cubeNewestFace.facekind == cubeTargetFace.facekind:
-        sharedBudget = [i for i in sharedBudget if i != Edge.SPECIALTRI]
+    if SPECIALTRI_IS_LEGAL:
+        if Edge.SPECIALTRI in sharedBudget and cubeNewestFace.facekind == cubeTargetFace.facekind:
+            sharedBudget = [i for i in sharedBudget if i != Edge.SPECIALTRI]
     for edge in sharedBudget:
         nextCube = copy.deepcopy(cube)
         nextCubeNewestFace = getattr(nextCube, newestFace)
@@ -384,7 +492,6 @@ if __name__ == "__main__":
             modCube.back = Face(face)
             cubeBacks.extend(recursiveEdgeCheck(modCube, "back", [("bottom", "a", "d")]))
     
-    # find a way to drop cubes where the faces AND EDGES are the same
     cubeBacks = cullCubes(cubeBacks)
 
     cubeLefts = []
@@ -461,5 +568,7 @@ if __name__ == "__main__":
         print(cube.topBackEdge, cube.topLeftEdge, cube.topFrontEdge, cube.topRightEdge)
     print(len(cubeTops))
     
-    #TODO: should I legalize the inverse of the 2 triangle 4 void blocks? solution should be to give squares the specialtri rules like voids
-    #TODO: or, remove specialtri?
+    #TODO: should I legalize the inverse of the 2 triangle 4 void blocks? solution should be to give squares the SPECIALTRI rules like voids
+    #TODO: or, remove SPECIALTRI?
+    #TODO: Round faces, being a subclass of Triangle faces, are different from Triangles and therefore interact poorly with SPECIALTRI
+    # thus, SPECIALTRI's check (and all SPECIAL edges) should check explicitly that either the current or target face is Empty
